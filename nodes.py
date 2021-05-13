@@ -12,7 +12,7 @@ GRID = 40
 DIST = 20
 OFFSET = DIST
 
-SNAKES = 20
+SNAKES = 1
 
 
 BG= '#111111'
@@ -92,6 +92,10 @@ class Point():
 	def __hash__(self):
 		return hash((self.x,self.y))
 
+	def dist(self,other):
+		res = sqrt((self.x-other.x)**2+(self.y-other.y)**2)
+		return res
+
 
 class Snake():
 	RADIUS = 5
@@ -115,14 +119,14 @@ class Snake():
 			end = RandomEmptyNode(start)
 			path = findPaths(start,end)
 
-		remove(end)
-		remove(start)
+		remove_n(end)
+		remove_n(start)
 		path.insert(0,start)
 		for i in range(1,len(path)-1):
 			n,c,p = path[i+1],path[i],path[i-1]
 			unlink(c,n)
 			if c.coords-p.coords!= n.coords-c.coords:
-				remove(c)
+				remove_n(c)
 
 
 		self.path = [node.coords for node in path]
@@ -187,10 +191,14 @@ def ctp(coord):
 	return (coord[0]*DIST+OFFSET,coord[1]*DIST+OFFSET)
 
 def main():
-	l = (GRID*DIST) + (OFFSET*2)
-	dwg = Drawing('res.svg',height=l, width=l)
+	leee = (GRID*DIST) + (OFFSET*2)
+	dwg = Drawing('res.svg',height=leee, width=leee)
 	dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), rx=None, ry=None, fill=BG))
 	gen_grid(GRID)
+
+	for node in l:
+		dwg.add(Circle(node.coords.pixel(),1,fill="white"))
+
 
 	snakes = [Snake() for i in range(SNAKES)]
 
@@ -199,11 +207,12 @@ def main():
 
 	dwg.save()
 
-def remove(node):
+def remove_n(node):
 	for c in node.connections:
 		if node in c.connections:
 			c.connections.remove(node)
 	if node in l:
+		print("insides")
 		l.remove(node)
 
 def unlink(a,b):
@@ -228,5 +237,11 @@ def gen_grid(n):
 			nodes[i][j].connections=cons
 	l = [j for sub in nodes for j in sub]
 
+	center = Point(GRID/2,GRID/2)
+	print(center)
+	for node in l:
+		if node.coords.dist(center)>(GRID/4):
+			print("removing")
+			remove_n(node)
 
 main()
