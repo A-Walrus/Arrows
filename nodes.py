@@ -8,11 +8,11 @@ import copy
 from math import *
 
 
-GRID = 40
+GRID = 41
 DIST = 20
 OFFSET = DIST
 
-SNAKES = 1
+SNAKES = 20
 
 
 BG= '#111111'
@@ -56,7 +56,6 @@ def findPaths(start,end,overrides=[]):
 					return [connection]+path
 	return False
 
-
 class Point():
 	def __init__(self,x,y):
 		self.x =x
@@ -95,7 +94,6 @@ class Point():
 	def dist(self,other):
 		res = sqrt((self.x-other.x)**2+(self.y-other.y)**2)
 		return res
-
 
 class Snake():
 	RADIUS = 5
@@ -196,9 +194,8 @@ def main():
 	dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), rx=None, ry=None, fill=BG))
 	gen_grid(GRID)
 
-	for node in l:
-		dwg.add(Circle(node.coords.pixel(),1,fill="white"))
-
+	# for node in l:
+	# 	dwg.add(Circle(node.coords.pixel(),1,fill="white"))
 
 	snakes = [Snake() for i in range(SNAKES)]
 
@@ -212,7 +209,6 @@ def remove_n(node):
 		if node in c.connections:
 			c.connections.remove(node)
 	if node in l:
-		print("insides")
 		l.remove(node)
 
 def unlink(a,b):
@@ -237,11 +233,10 @@ def gen_grid(n):
 			nodes[i][j].connections=cons
 	l = [j for sub in nodes for j in sub]
 
+
 	center = Point(GRID/2,GRID/2)
-	print(center)
-	for node in l:
-		if node.coords.dist(center)>(GRID/4):
-			print("removing")
-			remove_n(node)
+	to_remove = list(filter(lambda node: node.coords.dist(center)>GRID/2,l))
+	for node in to_remove:
+		remove_n(node)
 
 main()
