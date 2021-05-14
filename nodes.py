@@ -3,39 +3,42 @@ from svgwrite import *
 from svgwrite.shapes import *
 from svgwrite.container import *
 from svgwrite.path import *
+from svgwrite.text import *
 import random
 import copy
 from math import *
 
+count=0
 
 GRID = 41
 DIST = 20
-OFFSET = DIST
+OFFSET = DIST*2
 
-SNAKES = 20
+SNAKES = 25
 
 
 BG= '#111111'
 COLORS = [	'9b59b6','3498db','2ecc71','1abc9c','f1c40f','e74c3c','e67e22']
-# COLORS = ['000000']
 COLORS = list(map(lambda x: '#'+x,COLORS))
 nodes = None
 l = None
 
 MAX_LENGTH = 15
 
-def findConnected(start,o = [],connected = set()):
+def findConnected(start,connected = set()): # not used
 	connected.add(start)
 	for c in start.connections:
-		if c not in o:
-			findConnected(c,[start]+o,connected)
+		if c not in connected:
+			findConnected(c,connected)
 	return connected
 
 def RandomEmptyNode(start=None):
-	if False: # start
-		s = findConnected(start)
+	if start:
+		print(start)
+		s= list(findConnected(start))
 	else:
-		s=l
+		s = l
+
 	node= None
 	while True:
 		node = random.choice(s)
@@ -44,11 +47,11 @@ def RandomEmptyNode(start=None):
 	return node
 
 def findPaths(start,end,overrides=[]):
+	print(start,end,end in findConnected(start))
 	if end in start.connections:
 		return [end]
 	else:
-		options = []
-		random.shuffle(start.connections)
+		# random.shuffle(start.connections)
 		for connection in sorted(start.connections,key = lambda a: (end.coords-a.coords).length()):
 			if connection not in overrides:
 				path = findPaths(connection,end,[start]+overrides)
@@ -106,6 +109,10 @@ class Snake():
 	color = None
 
 	def __init__(self):
+		global count
+		print(count)
+		count+=1
+
 		self.path = []
 		self.color = random.choice(COLORS)
 
@@ -113,18 +120,22 @@ class Snake():
 		self.start = start.coords
 		end = None
 		path = None
+
+		i=0
 		while not path:
 			end = RandomEmptyNode(start)
 			path = findPaths(start,end)
+			i+=1
+			print(i)
 
-		remove_n(end)
-		remove_n(start)
+		remove_node(end)
+		remove_node(start)
 		path.insert(0,start)
 		for i in range(1,len(path)-1):
 			n,c,p = path[i+1],path[i],path[i-1]
 			unlink(c,n)
 			if c.coords-p.coords!= n.coords-c.coords:
-				remove_n(c)
+				remove_node(c)
 
 
 		self.path = [node.coords for node in path]
@@ -184,27 +195,31 @@ class Node():
 	def __repr__(self):
 		return str(self.coords)
 
-
 def ctp(coord):
 	return (coord[0]*DIST+OFFSET,coord[1]*DIST+OFFSET)
 
 def main():
 	leee = (GRID*DIST) + (OFFSET*2)
-	dwg = Drawing('res.svg',height=leee, width=leee)
+	dwg = Drawing('res.svg',size = (leee,leee))
 	dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), rx=None, ry=None, fill=BG))
-	gen_grid(GRID)
+	gen_graph(GRID)
 
-	# for node in l:
-	# 	dwg.add(Circle(node.coords.pixel(),1,fill="white"))
+	# Draw Dots
+	text = Group()
+	for node in l:
+		#dwg.add(Circle(node.coords.pixel(),1,fill="white"))
+		# dwg.add(Text(node.coords.__repr__(),x= node.coords.pixel()[0],y = node.coords.pixel()[0],fill="white"))
+		text.add(Text(f"({node.coords.x},{node.coords.y})",insert=node.coords.pixel(),fill='#ffffff',font_size='3px',stroke='none'))
+	dwg.add(text)
 
-	snakes = [Snake() for i in range(SNAKES)]
-
-	for s in snakes:
+	for s in range(SNAKES):
+		s = Snake()
 		dwg.add(s.svg())
 
-	dwg.save()
+		dwg.save()
 
-def remove_n(node):
+
+def remove_node(node):
 	for c in node.connections:
 		if node in c.connections:
 			c.connections.remove(node)
@@ -218,7 +233,7 @@ def unlink(a,b):
 	if b in a.connections:
 		a.connections.remove(b)
 
-def gen_grid(n):
+def gen_graph(n):
 	global l
 	nodes = [[Node(Point(i,j)) for j in range(n+2)]for i in range(n+2)]
 	for i in range(1,n):
@@ -233,10 +248,10 @@ def gen_grid(n):
 			nodes[i][j].connections=cons
 	l = [j for sub in nodes for j in sub]
 
-
+	# Turn into circle
 	center = Point(GRID/2,GRID/2)
-	to_remove = list(filter(lambda node: node.coords.dist(center)>GRID/2,l))
+	to_remove = list(filter(lambda node: node.coords.dist(center)>(n+2)/2,l))
 	for node in to_remove:
-		remove_n(node)
+		remove_node(node)
 
 main()
