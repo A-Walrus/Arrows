@@ -8,22 +8,23 @@ import random
 import copy
 from math import *
 
-count=0
-
-GRID = 41
+GRID = 27
 DIST = 20
 OFFSET = DIST*2
 
-SNAKES = 25
+SNAKES = 40
 
 
 BG= '#111111'
-COLORS = [	'9b59b6','3498db','2ecc71','1abc9c','f1c40f','e74c3c','e67e22']
+COLORS = ['1abc9c','2ecc71','3498db','9b59b6','16a085','27ae60','2980b9','8e44ad','f1c40f','e67e22','f39c12','c0392b','F06292']
+# COLORS = [	'D84315','EF6C00','FF8F00','F9A825','9E9D24','558B2F','2E7D32','00695C','00838F','0277BD','1565C0','283593','4527A0','6A1B9A','AD1457','c62828']
 COLORS = list(map(lambda x: '#'+x,COLORS))
 nodes = None
 l = None
 
-MAX_LENGTH = 15
+MAX_LENGTH = 8
+MIN_LENGTH = 3
+
 
 def findConnected(start,connected = set()): # not used
 	connected.add(start)
@@ -34,7 +35,6 @@ def findConnected(start,connected = set()): # not used
 
 def RandomEmptyNode(start=None):
 	if start:
-		print(start)
 		s= list(findConnected(start))
 	else:
 		s = l
@@ -42,22 +42,30 @@ def RandomEmptyNode(start=None):
 	node= None
 	while True:
 		node = random.choice(s)
-		if len(node.connections)==4 and node != start:
+		if len(node.connections)==4 and node != start and (not start or MIN_LENGTH<=node.coords.dist(start.coords)<=MAX_LENGTH):
 			break
 	return node
 
-def findPaths(start,end,overrides=[]):
-	print(start,end,end in findConnected(start))
-	if end in start.connections:
-		return [end]
-	else:
-		# random.shuffle(start.connections)
-		for connection in sorted(start.connections,key = lambda a: (end.coords-a.coords).length()):
-			if connection not in overrides:
-				path = findPaths(connection,end,[start]+overrides)
-				if path:
-					return [connection]+path
-	return False
+def findPaths(start,end):
+	paths = {}
+	layer = [start]
+	while end not in paths:
+		new_layer=[]
+		for node in layer:
+			for con in node.connections:
+				if con not in paths:
+					paths[con]=node
+					new_layer.append(con)
+		layer=new_layer
+		if layer==[]:
+			return False
+
+	path=[]
+	pos = end
+	while pos !=start:
+		path.append(pos)
+		pos = paths[pos]
+	return path[::-1]
 
 class Point():
 	def __init__(self,x,y):
@@ -109,9 +117,6 @@ class Snake():
 	color = None
 
 	def __init__(self):
-		global count
-		print(count)
-		count+=1
 
 		self.path = []
 		self.color = random.choice(COLORS)
@@ -121,12 +126,9 @@ class Snake():
 		end = None
 		path = None
 
-		i=0
 		while not path:
 			end = RandomEmptyNode(start)
 			path = findPaths(start,end)
-			i+=1
-			print(i)
 
 		remove_node(end)
 		remove_node(start)
@@ -191,9 +193,16 @@ class Node():
 	def __init__(self,coords):
 		self.coords=coords
 		self.connections=[]
+		self.paths={}
 
 	def __repr__(self):
 		return str(self.coords)
+
+	def __eq__(self,obj):
+		return isinstance(obj, Node) and obj.coords == self.coords and obj.connections==self.connections
+
+	def __hash__(self):
+		return hash(self.coords)
 
 def ctp(coord):
 	return (coord[0]*DIST+OFFSET,coord[1]*DIST+OFFSET)
@@ -205,19 +214,16 @@ def main():
 	gen_graph(GRID)
 
 	# Draw Dots
-	text = Group()
-	for node in l:
-		#dwg.add(Circle(node.coords.pixel(),1,fill="white"))
-		# dwg.add(Text(node.coords.__repr__(),x= node.coords.pixel()[0],y = node.coords.pixel()[0],fill="white"))
-		text.add(Text(f"({node.coords.x},{node.coords.y})",insert=node.coords.pixel(),fill='#ffffff',font_size='3px',stroke='none'))
-	dwg.add(text)
+	# debug = Group()
+	# for node in l:
+	# 	# dwg.add(Circle(node.coords.pixel(),1,fill="white"))
+	# 	# debug.add(Text(f"({node.coords.x},{node.coords.y})",insert=node.coords.pixel(),fill='#ffffff',font_size='3px',stroke='none'))
+	# dwg.add(debug)
 
 	for s in range(SNAKES):
 		s = Snake()
 		dwg.add(s.svg())
-
-		dwg.save()
-
+	dwg.save()
 
 def remove_node(node):
 	for c in node.connections:
