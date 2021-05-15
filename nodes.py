@@ -8,15 +8,18 @@ import random
 import copy
 from math import *
 
-GRID = 27
+GRID = 107
 DIST = 20
 OFFSET = DIST*2
 
-SNAKES = 40
+SNAKES = 2
+
+class CouldntCreate(Exception):
+	pass
 
 
 BG= '#111111'
-COLORS = ['1abc9c','2ecc71','3498db','9b59b6','16a085','27ae60','2980b9','8e44ad','f1c40f','e67e22','f39c12','c0392b','F06292']
+COLORS = ['C2185B','1abc9c','2ecc71','3498db','9b59b6','16a085','27ae60','2980b9','8e44ad','f1c40f','e67e22','f39c12','c0392b','F06292']
 # COLORS = [	'D84315','EF6C00','FF8F00','F9A825','9E9D24','558B2F','2E7D32','00695C','00838F','0277BD','1565C0','283593','4527A0','6A1B9A','AD1457','c62828']
 COLORS = list(map(lambda x: '#'+x,COLORS))
 nodes = None
@@ -24,27 +27,35 @@ l = None
 
 MAX_LENGTH = 8
 MIN_LENGTH = 3
+dwg = None
 
-
-def findConnected(start,connected = set()): # not used
+def findConnected(start,connected = set(),draw=False): # not used
+	if (len(start.connections)==0):
+		print("wtf")
+	global dwg
 	connected.add(start)
 	for c in start.connections:
 		if c not in connected:
+			if draw:
+				print("line")
+				dwg.add(Line(start=start.coords.pixel(),end=c.coords.pixel(),stroke='#ffffff',stroke_width=3))
 			findConnected(c,connected)
 	return connected
 
 def RandomEmptyNode(start=None):
 	if start:
-		s= list(findConnected(start))
+		s= list(set(l) & findConnected(start))
 	else:
 		s = l
 
 	node= None
-	while True:
-		node = random.choice(s)
-		if len(node.connections)==4 and node != start and (not start or MIN_LENGTH<=node.coords.dist(start.coords)<=MAX_LENGTH):
-			break
-	return node
+
+	s = list(filter(lambda node: len(node.connections)==4 and node!=start and (not start or MIN_LENGTH<=(node.coords-start.coords).length()<=MAX_LENGTH) , s))
+	try:
+		return random.choice(s)
+	except:
+		raise CouldntCreate
+	
 
 def findPaths(start,end):
 	paths = {}
@@ -58,6 +69,9 @@ def findPaths(start,end):
 					new_layer.append(con)
 		layer=new_layer
 		if layer==[]:
+			dwg.add(Circle(start.coords.pixel(),Snake.RADIUS,fill='#ffffff'))
+			dwg.add(Circle(end.coords.pixel(),Snake.RADIUS,fill='#ffffff'))
+			findConnected(start,draw=True)
 			return False
 
 	path=[]
@@ -121,15 +135,23 @@ class Snake():
 		self.path = []
 		self.color = random.choice(COLORS)
 
-		start = RandomEmptyNode()
-		self.start = start.coords
+		start = None
 		end = None
 		path = None
 
-		while not path:
+		for i in range(100):
+			start = RandomEmptyNode()
 			end = RandomEmptyNode(start)
 			path = findPaths(start,end)
+			if path:
+				break
+			raise CouldntCreate
+		else:
+			raise CouldntCreate
 
+		self.start = start.coords
+
+		print(end,start)
 		remove_node(end)
 		remove_node(start)
 		path.insert(0,start)
@@ -208,27 +230,32 @@ def ctp(coord):
 	return (coord[0]*DIST+OFFSET,coord[1]*DIST+OFFSET)
 
 def main():
+	global dwg
 	leee = (GRID*DIST) + (OFFSET*2)
-	dwg = Drawing('res.svg',size = (leee,leee))
+	dwg = Drawing('D:/Users/Guy/my python/Snakes/v2/Arrows/res.svg',size = (leee,leee))
 	dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), rx=None, ry=None, fill=BG))
 	gen_graph(GRID)
 
 	# Draw Dots
-	# debug = Group()
-	# for node in l:
-	# 	# dwg.add(Circle(node.coords.pixel(),1,fill="white"))
-	# 	# debug.add(Text(f"({node.coords.x},{node.coords.y})",insert=node.coords.pixel(),fill='#ffffff',font_size='3px',stroke='none'))
-	# dwg.add(debug)
+	debug = Group()
+	for node in l:
+		# dwg.add(Circle(node.coords.pixel(),1,fill="white"))
+		debug.add(Text(f"({node.coords.x},{node.coords.y})",insert=node.coords.pixel(),fill='#ffffff',font_size='3px',stroke='none'))
+	dwg.add(debug)
 
-	for s in range(SNAKES):
-		s = Snake()
-		dwg.add(s.svg())
-	dwg.save()
+	try:
+		while True:
+			print("new snake")
+			s = Snake()
+			dwg.add(s.svg())
+			
+	except CouldntCreate:
+		dwg.save()
 
 def remove_node(node):
 	for c in node.connections:
-		if node in c.connections:
-			c.connections.remove(node)
+		unlink(node,c)
+
 	if node in l:
 		l.remove(node)
 
@@ -239,8 +266,16 @@ def unlink(a,b):
 	if b in a.connections:
 		a.connections.remove(b)
 
+	if a in l and len(a.connections)==0:
+		l.remove(a)
+
+	if b in l and len(b.connections)==0:
+		l.remove(b)
+
+
 def gen_graph(n):
 	global l
+	global nodes
 	nodes = [[Node(Point(i,j)) for j in range(n+2)]for i in range(n+2)]
 	for i in range(1,n):
 		for j in range(2,n):
@@ -256,7 +291,7 @@ def gen_graph(n):
 
 	# Turn into circle
 	center = Point(GRID/2,GRID/2)
-	to_remove = list(filter(lambda node: node.coords.dist(center)>(n+2)/2,l))
+	to_remove = list(filter(lambda node: node.coords.dist(center)>(n)/2,l))
 	for node in to_remove:
 		remove_node(node)
 
