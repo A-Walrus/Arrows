@@ -7,13 +7,19 @@ from svgwrite.text import *
 import random
 import copy
 from math import *
+import sys
+sys.setrecursionlimit(10000)
 
-GRID = 27
+
+GRID = 50
 DIST = 20
-OFFSET = DIST*2
+OFFSET = DIST*3
 
-SNAKES = 40
 
+class Failed(Exception):
+	pass
+
+overrides= set()
 
 BG= '#111111'
 COLORS = ['1abc9c','2ecc71','3498db','9b59b6','16a085','27ae60','2980b9','8e44ad','f1c40f','e67e22','f39c12','c0392b','F06292']
@@ -25,8 +31,11 @@ l = None
 MAX_LENGTH = 8
 MIN_LENGTH = 3
 
+def mark_point(node,color='#ffffff'):
+	dwg.add(Circle(node.coords.pixel(),5,fill=color))
 
-def findConnected(start,connected = set()): # not used
+def findConnected(start,connected): # not used
+	# print(start,connected)
 	connected.add(start)
 	for c in start.connections:
 		if c not in connected:
@@ -35,18 +44,18 @@ def findConnected(start,connected = set()): # not used
 
 def RandomEmptyNode(start=None):
 	if start:
-		s= list(findConnected(start))
+		# print("london calling")
+		s= list(findConnected(start,set()))
 	else:
 		s = l
 
-	node= None
-	while True:
-		node = random.choice(s)
-		if len(node.connections)==4 and node != start and (not start or MIN_LENGTH<=node.coords.dist(start.coords)<=MAX_LENGTH):
-			break
-	return node
+	s = list(filter(lambda node: node != start and (not start or MIN_LENGTH<=node.coords.dist(start.coords)<=MAX_LENGTH), s))
+	s= list(set(s) - overrides)
+	if len(s)>0:
+		return random.choice(s)
+	return None
 
-def findPaths(start,end):
+def findPath(start,end):
 	paths = {}
 	layer = [start]
 	while end not in paths:
@@ -58,7 +67,13 @@ def findPaths(start,end):
 					new_layer.append(con)
 		layer=new_layer
 		if layer==[]:
-			return False
+			mark_point(start,'red')
+			mark_point(end,'blue')
+			debug()
+			dwg.save()
+
+			# print("badabum")
+			return None
 
 	path=[]
 	pos = end
@@ -121,18 +136,31 @@ class Snake():
 		self.path = []
 		self.color = random.choice(COLORS)
 
-		start = RandomEmptyNode()
-		self.start = start.coords
+		
+		start = None
 		end = None
 		path = None
 
-		while not path:
+		while not end:
+			start = RandomEmptyNode()
+			if not start:
+				raise Failed
 			end = RandomEmptyNode(start)
-			path = findPaths(start,end)
+			if not end:
+				overrides.add(start)
+
+		self.start = start.coords
+		path = findPath(start,end)
+
+		path.insert(0,start)
+
+		for node in path:
+			overrides.add(node)
 
 		remove_node(end)
 		remove_node(start)
-		path.insert(0,start)
+		
+
 		for i in range(1,len(path)-1):
 			n,c,p = path[i+1],path[i],path[i-1]
 			unlink(c,n)
@@ -187,16 +215,12 @@ class Snake():
 		return g
 
 class Node():
-	coords=()
-	connections = []
-
 	def __init__(self,coords):
 		self.coords=coords
 		self.connections=[]
-		self.paths={}
 
 	def __repr__(self):
-		return str(self.coords)
+		return "N"+str(self.coords)
 
 	def __eq__(self,obj):
 		return isinstance(obj, Node) and obj.coords == self.coords and obj.connections==self.connections
@@ -207,28 +231,41 @@ class Node():
 def ctp(coord):
 	return (coord[0]*DIST+OFFSET,coord[1]*DIST+OFFSET)
 
+def debug():
+	# Draw Dots
+	debug = Group()
+	for node in l:
+		debug.add(Circle(node.coords.pixel(),2,fill="white"))
+		debug.add(Text(f"({node.coords.x},{node.coords.y})",insert=node.coords.pixel(),fill='#ffffff',font_size='3px',stroke='none'))
+		for con in node.connections:
+			debug.add(Circle(((node.coords*3 + con.coords)*0.25).pixel(),0.5,fill="white"))
+	dwg.add(debug)
+
 def main():
-	leee = (GRID*DIST) + (OFFSET*2)
-	dwg = Drawing('res.svg',size = (leee,leee))
+	global dwg
+	leee = ((GRID-1)*DIST) + (OFFSET*2)
+	dwg = Drawing('D:/Users/Guy/my python/Snakes/v2/Arrows/res.svg',size = (leee,leee))
 	dwg.add(dwg.rect(insert=(0, 0), size=('100%', '100%'), rx=None, ry=None, fill=BG))
 	gen_graph(GRID)
 
-	# Draw Dots
-	# debug = Group()
-	# for node in l:
-	# 	# dwg.add(Circle(node.coords.pixel(),1,fill="white"))
-	# 	# debug.add(Text(f"({node.coords.x},{node.coords.y})",insert=node.coords.pixel(),fill='#ffffff',font_size='3px',stroke='none'))
-	# dwg.add(debug)
+	
+	try:
+		while True:
+			s = Snake()
+			dwg.add(s.svg())
+	except Failed:
+		pass
 
-	for s in range(SNAKES):
-		s = Snake()
-		dwg.add(s.svg())
+	# debug()
+
 	dwg.save()
 
 def remove_node(node):
 	for c in node.connections:
 		if node in c.connections:
 			c.connections.remove(node)
+			remove_if_need(c)
+	node.connections=[]
 	if node in l:
 		l.remove(node)
 
@@ -239,11 +276,20 @@ def unlink(a,b):
 	if b in a.connections:
 		a.connections.remove(b)
 
+	remove_if_need(a)
+	remove_if_need(b)
+
+def remove_if_need(node):
+	if node.connections==[]:
+		if node in l:
+			l.remove(node)
+
+
 def gen_graph(n):
 	global l
-	nodes = [[Node(Point(i,j)) for j in range(n+2)]for i in range(n+2)]
-	for i in range(1,n):
-		for j in range(2,n):
+	nodes = [[Node(Point(i,j)) for j in range(-2,n+2)]for i in range(-2,n+2)]
+	for i in range(1,n+3):
+		for j in range(1,n+3):
 			cons = [
 			nodes[i][j+1],
 			nodes[i][j-1],
@@ -255,9 +301,10 @@ def gen_graph(n):
 	l = [j for sub in nodes for j in sub]
 
 	# Turn into circle
-	center = Point(GRID/2,GRID/2)
-	to_remove = list(filter(lambda node: node.coords.dist(center)>(n+2)/2,l))
+	center = Point((n-1)/2,(n-1)/2)
+	to_remove = list(filter(lambda node: node.coords.dist(center)>(n)/2, l ))
 	for node in to_remove:
 		remove_node(node)
+
 
 main()
