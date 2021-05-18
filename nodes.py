@@ -4,14 +4,17 @@ from svgwrite.shapes import *
 from svgwrite.container import *
 from svgwrite.path import *
 from svgwrite.text import *
+from svgwrite.animate import *
 import random
 import copy
 from math import *
 import sys
-sys.setrecursionlimit(10000)
+import re
 
+sys.setrecursionlimit(100000)
 
-GRID = 50
+DUR = 3
+GRID = 40
 DIST = 20
 OFFSET = DIST*3
 
@@ -23,7 +26,6 @@ overrides= set()
 
 BG= '#111111'
 COLORS = ['1abc9c','2ecc71','3498db','9b59b6','16a085','27ae60','2980b9','8e44ad','f1c40f','e67e22','f39c12','c0392b','F06292']
-# COLORS = [	'D84315','EF6C00','FF8F00','F9A825','9E9D24','558B2F','2E7D32','00695C','00838F','0277BD','1565C0','283593','4527A0','6A1B9A','AD1457','c62828']
 COLORS = list(map(lambda x: '#'+x,COLORS))
 nodes = None
 l = None
@@ -34,8 +36,7 @@ MIN_LENGTH = 3
 def mark_point(node,color='#ffffff'):
 	dwg.add(Circle(node.coords.pixel(),5,fill=color))
 
-def findConnected(start,connected): # not used
-	# print(start,connected)
+def findConnected(start,connected):
 	connected.add(start)
 	for c in start.connections:
 		if c not in connected:
@@ -44,7 +45,6 @@ def findConnected(start,connected): # not used
 
 def RandomEmptyNode(start=None):
 	if start:
-		# print("london calling")
 		s= list(findConnected(start,set()))
 	else:
 		s = l
@@ -71,8 +71,6 @@ def findPath(start,end):
 			mark_point(end,'blue')
 			debug()
 			dwg.save()
-
-			# print("badabum")
 			return None
 
 	path=[]
@@ -125,8 +123,8 @@ class Snake():
 	RADIUS = 5
 	WIDTH = 3
 	CORNER = DIST/4
-	TRI_H = 0.5
-	TRI_W = 0.3
+	TRI_H = 0.6 *DIST
+	TRI_W = 0.4 *DIST
 
 	start = (0,0) # start coordinate
 	color = None
@@ -174,11 +172,12 @@ class Snake():
 	def svg(self):
 		g = Group()
 		if len(self.path)>0:
+
 			path = Path([('M',self.start.pixel())],stroke=self.color,stroke_width=Snake.WIDTH,fill='none')
 
 			deltas = [self.path[i]-self.path[i-1] for i in range(1,len(self.path))]
 
-			commands=[]
+			length=0
 
 			prev_delta = None
 			i=0
@@ -191,11 +190,14 @@ class Snake():
 					path.push(('L',pos.pixel()[0]-Snake.CORNER*to.x,pos.pixel()[1]-Snake.CORNER*to.y))
 					target = (pos.pixel()[0]+Snake.CORNER*fr.x,pos.pixel()[1]+Snake.CORNER*fr.y)
 					path.push(('C',pos.pixel()[0]-MAGIC*to.x,pos.pixel()[1]-MAGIC*to.y,pos.pixel()[0]+MAGIC*fr.x,pos.pixel()[1]+MAGIC*fr.y,target[0],target[1]))
-					
-					# direction = '+' if (to+fr).angle()>0 else '-'
-					# path.push_arc(target,90,Snake.CORNER,False,direction,True)
+					length-=(Snake.CORNER*2)-(0.5*pi*Snake.CORNER)
 				else:
 					path.push(('L',self.path[i].pixel()[0],self.path[i].pixel()[1]))
+
+			length += DIST *(len(self.path)-1)
+
+			path.add(Animate("stroke-dashoffset",[length,0],repeatCount="indefinite",dur="%ds"%DUR))
+			path["stroke-dasharray"]=length
 
 			border = copy.deepcopy(path)
 			border.update({'stroke-width':Snake.WIDTH*3,'stroke':BG})
@@ -203,10 +205,10 @@ class Snake():
 			g.add(border)
 			g.add(path)
 
-			end = self.path[-1]
-			forward = deltas[-1]*Snake.TRI_H
-			side = Point(forward.y,forward.x)*(Snake.TRI_W/Snake.TRI_H)
-			triangle = Path([('M',(end+side).pixel()),('L',(end+forward).pixel()),('L',(end-side).pixel())],fill=self.color)
+			triangle = Path([('M',0,Snake.TRI_W),('L',Snake.TRI_H,0),('L',0,-Snake.TRI_W)],fill=self.color,stroke_width=Snake.WIDTH,stroke=BG)
+
+			string_path = re.search('d="(.*?)"',path.tostring()).groups()[0]
+			triangle.add(AnimateMotion(path=string_path,repeatCount="indefinite",dur="%ds"%DUR,rotate="auto"))
 
 			g.add(triangle)
 
@@ -266,8 +268,7 @@ def remove_node(node):
 			c.connections.remove(node)
 			remove_if_need(c)
 	node.connections=[]
-	if node in l:
-		l.remove(node)
+	remove_from_l(node)
 
 def unlink(a,b):
 	if a in b.connections:
@@ -281,9 +282,13 @@ def unlink(a,b):
 
 def remove_if_need(node):
 	if node.connections==[]:
-		if node in l:
-			l.remove(node)
+		remove_from_l(node)
 
+def remove_from_l(node):
+	try:
+		l.remove(node)
+	except:
+		pass
 
 def gen_graph(n):
 	global l
