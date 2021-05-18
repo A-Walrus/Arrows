@@ -13,7 +13,7 @@ import re
 
 sys.setrecursionlimit(100000)
 
-DUR = 3
+DUR = 2.3
 GRID = 40
 DIST = 20
 OFFSET = DIST*3
@@ -196,7 +196,7 @@ class Snake():
 
 			length += DIST *(len(self.path)-1)
 
-			path.add(Animate("stroke-dashoffset",[length,0],repeatCount="indefinite",dur="%ds"%DUR))
+			path.add(Animate("stroke-dashoffset",[length,0],repeatCount="1",dur="%ds"%DUR,fill="freeze"))
 			path["stroke-dasharray"]=length
 
 			border = copy.deepcopy(path)
@@ -208,7 +208,7 @@ class Snake():
 			triangle = Path([('M',0,Snake.TRI_W),('L',Snake.TRI_H,0),('L',0,-Snake.TRI_W)],fill=self.color,stroke_width=Snake.WIDTH,stroke=BG)
 
 			string_path = re.search('d="(.*?)"',path.tostring()).groups()[0]
-			triangle.add(AnimateMotion(path=string_path,repeatCount="indefinite",dur="%ds"%DUR,rotate="auto"))
+			triangle.add(AnimateMotion(path=string_path,repeatCount="1",dur="%ds"%DUR,rotate="auto",fill="freeze"))
 
 			g.add(triangle)
 
