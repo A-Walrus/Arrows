@@ -13,10 +13,10 @@ import re
 
 sys.setrecursionlimit(100000)
 
-GRID = 50
+DUR = 2.3
+GRID = 40
 DIST = 20
 OFFSET = DIST*3
-SPEED = 1*DIST
 
 
 class Failed(Exception):
@@ -121,7 +121,7 @@ class Point():
 
 class Snake():
 	RADIUS = 5
-	WIDTH = 4
+	WIDTH = 3
 	CORNER = DIST/4
 	TRI_H = 0.6 *DIST
 	TRI_W = 0.4 *DIST
@@ -173,7 +173,7 @@ class Snake():
 		g = Group()
 		if len(self.path)>0:
 
-			commands=[('M',self.start.pixel()[0],self.start.pixel()[1])]
+			path = Path([('M',self.start.pixel())],stroke=self.color,stroke_width=Snake.WIDTH,fill='none')
 
 			deltas = [self.path[i]-self.path[i-1] for i in range(1,len(self.path))]
 
@@ -187,18 +187,16 @@ class Snake():
 					fr = deltas[i]
 					pos = self.path[i]
 					MAGIC = 0.552284749831*Snake.CORNER
-					commands.append(('L',pos.pixel()[0]-Snake.CORNER*to.x,pos.pixel()[1]-Snake.CORNER*to.y))
+					path.push(('L',pos.pixel()[0]-Snake.CORNER*to.x,pos.pixel()[1]-Snake.CORNER*to.y))
 					target = (pos.pixel()[0]+Snake.CORNER*fr.x,pos.pixel()[1]+Snake.CORNER*fr.y)
-					commands.append(('C',pos.pixel()[0]-MAGIC*to.x,pos.pixel()[1]-MAGIC*to.y,pos.pixel()[0]+MAGIC*fr.x,pos.pixel()[1]+MAGIC*fr.y,target[0],target[1]))
+					path.push(('C',pos.pixel()[0]-MAGIC*to.x,pos.pixel()[1]-MAGIC*to.y,pos.pixel()[0]+MAGIC*fr.x,pos.pixel()[1]+MAGIC*fr.y,target[0],target[1]))
 					length-=(Snake.CORNER*2)-(0.5*pi*Snake.CORNER)
 				else:
-					commands.append(('L',self.path[i].pixel()[0],self.path[i].pixel()[1]))
+					path.push(('L',self.path[i].pixel()[0],self.path[i].pixel()[1]))
 
 			length += DIST *(len(self.path)-1)
 
-			path = Path(commands,stroke=self.color,stroke_width=Snake.WIDTH,fill='none',stroke_linecap="round")
-
-			path.add(Animate("stroke-dashoffset",[length,0,length],repeatCount="indefinite",dur="%fs"%(length/SPEED),fill="freeze"))
+			path.add(Animate("stroke-dashoffset",[length,0],repeatCount="1",dur="%ds"%DUR,fill="freeze"))
 			path["stroke-dasharray"]=length
 
 			border = copy.deepcopy(path)
@@ -209,15 +207,10 @@ class Snake():
 
 			triangle = Path([('M',0,Snake.TRI_W),('L',Snake.TRI_H,0),('L',0,-Snake.TRI_W)],fill=self.color,stroke_width=Snake.WIDTH,stroke=BG)
 
-			commands = [" ".join([str(i) for i in command])for command in commands]
-			commands = commands + commands[::-1]
+			string_path = re.search('d="(.*?)"',path.tostring()).groups()[0]
+			triangle.add(AnimateMotion(path=string_path,repeatCount="1",dur="%ds"%DUR,rotate="auto",fill="freeze"))
 
-			string_path = " ".join(commands)
-
-
-			# triangle.add(AnimateMotion(path=string_path,repeatCount="indefinite",dur="%fs"%(length/SPEED),rotate="auto",fill="freeze"))
-			# triangle.add(Animate())
-			# g.add(triangle)
+			g.add(triangle)
 
 			circle = Circle(self.start.pixel(),Snake.RADIUS,fill=self.color)
 			g.add(circle)
